@@ -7,4 +7,6 @@
     <string name="crop__done">DONE</string>
     <string name="crop__cancel" tools:ignore="ButtonCase">CANCEL</string>
 
+    <string name="crop__take_error">Cannot open system camera</string>
+
 </resources>

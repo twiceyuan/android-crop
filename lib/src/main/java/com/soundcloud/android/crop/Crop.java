@@ -3,11 +3,21 @@ package com.soundcloud.android.crop;
 import android.app.Activity;
 import android.app.Fragment;
 import android.content.ActivityNotFoundException;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.provider.MediaStore;
 import android.widget.Toast;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 /**
  * Builder for crop Intents and utils for handling result
@@ -16,6 +26,7 @@ public class Crop {
 
     public static final int REQUEST_CROP = 6709;
     public static final int REQUEST_PICK = 9162;
+    public static final int REQUEST_TAKE = 8129;
     public static final int RESULT_ERROR = 404;
 
     static interface Extra {
@@ -27,6 +38,9 @@ public class Crop {
     }
 
     private Intent cropIntent;
+    private static int rotateAngle = 0;
+    private static Context mContext;
+    public static Uri tempPhotoUri;
 
     /**
      * Create a crop Intent builder with source and destination image Uris
@@ -35,6 +49,15 @@ public class Crop {
      * @param destination Uri for saving the cropped image
      */
     public static Crop of(Uri source, Uri destination) {
+        return new Crop(source, destination);
+    }
+
+    /**
+     * To get the rotate angle
+     */
+    public static Crop of(Context context, Uri source, Uri destination) {
+        rotateAngle = getRotateAngle(getAbsolutePathOfUri(context, source));
+        mContext = context;
         return new Crop(source, destination);
     }
 
@@ -159,6 +182,42 @@ public class Crop {
     }
 
     /**
+     * Retrieve URI for cropped image with rotate angle, also see {@link this#getOutput(Intent)}.
+     * @param result Output Image URI
+     * @param rotateAngle rotate angle of output image URI
+     */
+    public static Uri getOutputWithRotate(Intent result, int rotateAngle) {
+        Uri uri = getOutput(result);
+        String absolutePath = getAbsolutePathOfUri(mContext, uri);
+        RotateBitmap bitmap = new RotateBitmap(BitmapFactory.decodeFile(absolutePath), rotateAngle);
+        FileOutputStream fileOutputStream;
+        File tempFile = new File(absolutePath);
+        try {
+            boolean deleteResult = false;
+            boolean createResult;
+            if (tempFile.exists()) {
+                deleteResult = tempFile.delete();
+            }
+            createResult = tempFile.createNewFile();
+            if (!deleteResult || !createResult) {
+                Log.e("delete result: " + deleteResult + "create result: " + createResult);
+            }
+
+            fileOutputStream = new FileOutputStream(tempFile);
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            bitmap.getBitmap().compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
+            fileOutputStream.write(byteArrayOutputStream.toByteArray());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return Uri.fromFile(tempFile);
+    }
+
+    public static Uri getOutputWithRotate(Intent result) {
+        return getOutputWithRotate(result, rotateAngle);
+    }
+
+    /**
      * Retrieve error that caused crop to fail
      *
      * @param result Result Intent
@@ -192,4 +251,92 @@ public class Crop {
         }
     }
 
+    /**
+     * Utility to take a photo
+     *
+     * @param activity Activity that will receive result
+     */
+    public static void takePhoto(Activity activity) {
+        takePhoto(activity, REQUEST_TAKE);
+    }
+
+    /**
+     * Utility to take a photo
+     *
+     * @param activity Activity that will receive result
+     * @param requestCode requestCode for result
+     */
+    public static void takePhoto(Activity activity, int requestCode) {
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        tempPhotoUri = Uri.fromFile(new File(activity.getExternalCacheDir(), ".temp"));
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, tempPhotoUri);
+        try {
+            activity.startActivityForResult(intent, requestCode);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(activity, R.string.crop__take_error, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Utility for get angle of rotate
+     * Some device photo has a rotate angle, if not process it, the picture will not display normally.
+     *
+     * @param imagePath absolute path of the image
+     * @return angle of rotate
+     */
+    public static int getRotateAngle(String imagePath) {
+        int degree = 0;
+        try {
+            ExifInterface exifInterface = new ExifInterface(imagePath);
+            int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL);
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    degree = 90;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    degree = 180;
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    degree = 270;
+                    break;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return degree;
+    }
+
+    /**
+     * Utility for get an absolute path of a uri.(ex. content uri)
+     *
+     * @param context the context of application
+     * @param uri uri of image
+     * @return absolute path of the image
+     */
+    public static String getAbsolutePathOfUri(Context context, Uri uri) {
+        if (null == uri) {
+            return null;
+        }
+
+        final String scheme = uri.getScheme();
+        String data = null;
+        if (scheme == null)
+            data = uri.getPath();
+        else if (ContentResolver.SCHEME_FILE.equals(scheme)) {
+            data = uri.getPath();
+        } else if (ContentResolver.SCHEME_CONTENT.equals(scheme)) {
+            Cursor cursor = context.getContentResolver().query(uri, new String[]{MediaStore.Images.ImageColumns.DATA}, null, null, null);
+            if (null != cursor) {
+                if (cursor.moveToFirst()) {
+                    int index = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA);
+                    if (index > -1) {
+                        data = cursor.getString(index);
+                    }
+                }
+                cursor.close();
+            }
+        }
+        return data;
+    }
 }
