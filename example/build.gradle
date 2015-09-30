@@ -4,11 +4,11 @@ archivesBaseName = 'android-crop-example'
 
 android {
     compileSdkVersion 21
-    buildToolsVersion '21.1.2'
+    buildToolsVersion '23.0.1'
 
     defaultConfig {
         minSdkVersion 14
-        targetSdkVersion 21
+        targetSdkVersion 23
         versionCode Integer.parseInt(project.VERSION_CODE)
         versionName project.VERSION
     }

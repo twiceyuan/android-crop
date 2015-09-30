@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.provider.MediaStore;
@@ -45,7 +46,7 @@ public class Crop {
     /**
      * Create a crop Intent builder with source and destination image Uris
      *
-     * @param source Uri for image to crop
+     * @param source      Uri for image to crop
      * @param destination Uri for saving the cropped image
      */
     public static Crop of(Uri source, Uri destination) {
@@ -65,6 +66,15 @@ public class Crop {
         cropIntent = new Intent();
         cropIntent.setData(source);
         cropIntent.putExtra(MediaStore.EXTRA_OUTPUT, destination);
+    }
+
+    public static Uri formatUri(Uri uri) {
+        String path = uri.getPath();
+        if (path == null) {
+            return null;
+        } else {
+            return Uri.fromFile(new File(path.replace("%3A", ":")));
+        }
     }
 
     /**
@@ -91,7 +101,7 @@ public class Crop {
     /**
      * Set maximum crop size
      *
-     * @param width Max width
+     * @param width  Max width
      * @param height Max height
      */
     public Crop withMaxSize(int width, int height) {
@@ -112,7 +122,7 @@ public class Crop {
     /**
      * Send the crop Intent from an Activity with a custom requestCode
      *
-     * @param activity Activity to receive result
+     * @param activity    Activity to receive result
      * @param requestCode requestCode for result
      */
     public void start(Activity activity, int requestCode) {
@@ -122,44 +132,44 @@ public class Crop {
     /**
      * Send the crop Intent from a Fragment
      *
-     * @param context Context
+     * @param context  Context
      * @param fragment Fragment to receive result
      */
     public void start(Context context, Fragment fragment) {
         start(context, fragment, REQUEST_CROP);
     }
 
-	/**
-	 * Send the crop Intent from a support library Fragment
-	 *
-	 * @param context Context
-	 * @param fragment Fragment to receive result
-	 */
-	public void start(Context context, android.support.v4.app.Fragment fragment) {
-		start(context, fragment, REQUEST_CROP);
-	}
+    /**
+     * Send the crop Intent from a support library Fragment
+     *
+     * @param context  Context
+     * @param fragment Fragment to receive result
+     */
+    public void start(Context context, android.support.v4.app.Fragment fragment) {
+        start(context, fragment, REQUEST_CROP);
+    }
 
     /**
      * Send the crop Intent with a custom requestCode
      *
-     * @param context Context
-     * @param fragment Fragment to receive result
+     * @param context     Context
+     * @param fragment    Fragment to receive result
      * @param requestCode requestCode for result
      */
     public void start(Context context, Fragment fragment, int requestCode) {
         fragment.startActivityForResult(getIntent(context), requestCode);
     }
 
-	/**
-	 * Send the crop Intent with a custom requestCode
-	 *
-	 * @param context Context
-	 * @param fragment Fragment to receive result
-	 * @param requestCode requestCode for result
-	 */
-	public void start(Context context, android.support.v4.app.Fragment fragment, int requestCode) {
-		fragment.startActivityForResult(getIntent(context), requestCode);
-	}
+    /**
+     * Send the crop Intent with a custom requestCode
+     *
+     * @param context     Context
+     * @param fragment    Fragment to receive result
+     * @param requestCode requestCode for result
+     */
+    public void start(Context context, android.support.v4.app.Fragment fragment, int requestCode) {
+        fragment.startActivityForResult(getIntent(context), requestCode);
+    }
 
     /**
      * Get Intent to start crop Activity
@@ -183,14 +193,26 @@ public class Crop {
 
     /**
      * Retrieve URI for cropped image with rotate angle, also see {@link this#getOutput(Intent)}.
-     * @param result Output Image URI
+     *
+     * @param result      Output Image URI
      * @param rotateAngle rotate angle of output image URI
      */
     public static Uri getOutputWithRotate(Intent result, int rotateAngle) {
         Uri uri = getOutput(result);
         String absolutePath = getAbsolutePathOfUri(mContext, uri);
-        RotateBitmap bitmap = new RotateBitmap(BitmapFactory.decodeFile(absolutePath), rotateAngle);
+        Bitmap bitmap = BitmapFactory.decodeFile(absolutePath);//根据Path读取资源图片
+
+        // 下面的方法主要作用是把图片转一个角度，也可以放大缩小等
+        Matrix m = new Matrix();
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        m.setRotate(rotateAngle); // 旋转angle度
+        bitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height, m, true);// 从新生成图片
         FileOutputStream fileOutputStream;
+//        File cacheDir = new File("/sdcard/.Lucking/");
+//        if (!cacheDir.exists()) {
+//            cacheDir.mkdir();
+//        }
         File tempFile = new File(absolutePath);
         try {
             boolean deleteResult = false;
@@ -205,7 +227,7 @@ public class Crop {
 
             fileOutputStream = new FileOutputStream(tempFile);
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            bitmap.getBitmap().compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
             fileOutputStream.write(byteArrayOutputStream.toByteArray());
         } catch (IOException e) {
             e.printStackTrace();
@@ -239,7 +261,7 @@ public class Crop {
     /**
      * Utility to start an image picker with request code
      *
-     * @param activity Activity that will receive result
+     * @param activity    Activity that will receive result
      * @param requestCode requestCode for result
      */
     public static void pickImage(Activity activity, int requestCode) {
@@ -263,7 +285,7 @@ public class Crop {
     /**
      * Utility to take a photo
      *
-     * @param activity Activity that will receive result
+     * @param activity    Activity that will receive result
      * @param requestCode requestCode for result
      */
     public static void takePhoto(Activity activity, int requestCode) {
@@ -311,7 +333,7 @@ public class Crop {
      * Utility for get an absolute path of a uri.(ex. content uri)
      *
      * @param context the context of application
-     * @param uri uri of image
+     * @param uri     uri of image
      * @return absolute path of the image
      */
     public static String getAbsolutePathOfUri(Context context, Uri uri) {
@@ -336,6 +358,9 @@ public class Crop {
                 }
                 cursor.close();
             }
+        }
+        if (data == null) {
+            return PhotoUtil.getPath(context, uri);
         }
         return data;
     }

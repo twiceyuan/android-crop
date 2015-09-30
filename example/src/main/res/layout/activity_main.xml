@@ -8,7 +8,8 @@
         android:id="@+id/result_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="centerInside"
-        android:background="@drawable/texture" />
+        android:scaleType="center"
+        android:background="@drawable/texture"
+        android:contentDescription="@string/app_name"/>
 
 </FrameLayout>
